@@ -51,7 +51,7 @@ textarea{min-height:140px;resize:vertical;max-width:100%;}
 .input-group{display:flex;align-items:center;gap:8px;max-width:480px;}
 .input-group input{flex:1;max-width:none;}
 .input-suffix{font-size:13px;color:var(--text-secondary);white-space:nowrap;}
-.radio-group,.chip-group{display:flex;flex-wrap:wrap;gap:10px;}
+.radio-group{display:flex;flex-wrap:wrap;gap:10px;}
 .radio-pill{display:inline-flex;align-items:center;gap:8px;padding:10px 16px;border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;background:#fff;transition:border-color 0.15s,background 0.15s;}
 .radio-pill:hover{border-color:#c8c8cc;}
 .radio-pill input{accent-color:var(--naver-green);width:16px;height:16px;margin:0;}
@@ -99,7 +99,7 @@ textarea{min-height:140px;resize:vertical;max-width:100%;}
       <span class="brand-text"><strong>스마트스토어</strong><span>판매자센터 · 상품 등록</span></span>
     </a>
     <div class="api-key-bar">
-      <label for="claudeApiKey">🔑 Claude API Key</label>
+      <label for="claudeApiKey">Claude API Key</label>
       <input type="password" id="claudeApiKey" placeholder="sk-ant-..." autocomplete="off" />
     </div>
     <div class="header-actions"><button type="button" class="btn-ghost">미리보기</button></div>
@@ -210,11 +210,11 @@ textarea{min-height:140px;resize:vertical;max-width:100%;}
   var btnAiDesc=document.getElementById("btnAiDesc"),aiStatus=document.getElementById("aiStatus"),descriptionEl=document.getElementById("description");
   btnAiDesc.addEventListener("click",function(){
     var apiKey=document.getElementById("claudeApiKey").value.trim();
-    if(!apiKey){aiStatus.className="ai-status error";aiStatus.textContent="X 상단에 Claude API Key를 입력해주세요.";return;}
+    if(!apiKey){aiStatus.className="ai-status error";aiStatus.textContent="API Key를 입력해주세요.";return;}
     var productName=document.getElementById("productName").value.trim();
-    if(!productName){aiStatus.className="ai-status error";aiStatus.textContent="X 상품명을 먼저 입력해주세요.";return;}
+    if(!productName){aiStatus.className="ai-status error";aiStatus.textContent="상품명을 먼저 입력해주세요.";return;}
     var price=document.getElementById("price").value,lg=catLarge.value,md=catMid.value,sm=catSmall.value,tagList=tags.join(", ");
-    btnAiDesc.disabled=true;aiStatus.className="ai-status loading";aiStatus.textContent="AI가 상품 설명을 생성 중입니다...";
+    btnAiDesc.disabled=true;aiStatus.className="ai-status loading";aiStatus.textContent="✨ AI가 상품 설명을 생성 중입니다...";
     var prompt="스마트스토어 상품 등록을 위한 매력적인 상품 설명을 한국어로 작성해주세요.
 
 상품명: "+productName+"
@@ -226,12 +226,19 @@ textarea{min-height:140px;resize:vertical;max-width:100%;}
     if(tagList)prompt+="태그: "+tagList+"
 ";
     prompt+="
-상품 특징, 소재/사양, 사이즈/크기, 교환.반품 안내를 포함하여 구매자가 구매하고 싶도록 설명을 작성해주세요. 이모지를 적절히 사용하고 읽기 쉽게 단락을 나눠주세요.";
-    fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-haiku-4-5",max_tokens:1024,messages:[{role:"user",content:prompt}]})})
-      .then(function(r){return r.json();})
-      .then(function(data){if(data.error){aiStatus.className="ai-status error";aiStatus.textContent="오류: "+data.error.message;}else{var text=data.content&&data.content[0]&&data.content[0].text;if(text){descriptionEl.value=text;aiStatus.className="ai-status success";aiStatus.textContent="AI 설명이 생성되었습니다! 필요에 따라 수정하세요.";}}})
-      .catch(function(e){aiStatus.className="ai-status error";aiStatus.textContent="네트워크 오류: "+e.message;})
-      .finally(function(){btnAiDesc.disabled=false;});
+상품 특징, 소재/사양, 사이즈/크기, 교환·반품 안내를 포함하여 구매자가 구매하고 싶도록 설명을 작성해주세요. 이모지를 적절히 사용하고 읽기 쉽게 단락을 나눠주세요.";
+    fetch("/api/claude",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        apiKey:apiKey,
+        payload:{model:"claude-haiku-4-5",max_tokens:1024,messages:[{role:"user",content:prompt}]}
+      })
+    })
+    .then(function(r){return r.json();})
+    .then(function(data){if(data.error){aiStatus.className="ai-status error";aiStatus.textContent="오류: "+(data.error.message||data.error);}else{var text=data.content&&data.content[0]&&data.content[0].text;if(text){descriptionEl.value=text;aiStatus.className="ai-status success";aiStatus.textContent="✅ AI 설명이 생성되었습니다! 필요에 따라 수정하세요.";}}})
+    .catch(function(e){aiStatus.className="ai-status error";aiStatus.textContent="오류: "+e.message;})
+    .finally(function(){btnAiDesc.disabled=false;});
   });
   var form=document.getElementById("productForm");
   form.addEventListener("submit",function(e){e.preventDefault();if(!form.reportValidity())return;var lg=catLarge.value,md=catMid.value,sm=catSmall.value;var data={productName:document.getElementById("productName").value.trim(),price:document.getElementById("price").value,stock:document.getElementById("stock").value,category:{large:lg,medium:md,small:sm,fullPath:lg&&md&&sm?categoryFullPath(lg,md,sm):""},condition:form.querySelector('input[name="condition"]:checked').value,shipping:form.querySelector('input[name="shipping"]:checked').value,tags:tags.slice(),description:document.getElementById("description").value.trim(),images:storedImages.map(function(item,i){return{index:i+1,name:item.file.name,size:item.file.size,type:item.file.type};})};console.log(JSON.stringify(data,null,2));alert("저장되었습니다!");});
