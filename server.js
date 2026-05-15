@@ -7,33 +7,41 @@ const PORT = 3000;
 
 http.createServer((req, res) => {
   if (req.method === 'POST' && req.url === '/api/claude') {
-    let body = '';
-    req.on('data', chunk => body += chunk);
+    const chunks = [];
+    req.on('data', chunk => chunks.push(chunk));
     req.on('end', () => {
-      const { apiKey, payload } = JSON.parse(body);
-      const data = JSON.stringify(payload);
-      const options = {
-        hostname: 'api.anthropic.com',
-        path: '/v1/messages',
-        method: 'POST',
-        headers: {
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'content-type': 'application/json',
-          'content-length': Buffer.byteLength(data)
-        }
-      };
-      const apiReq = https.request(options, apiRes => {
-        let result = '';
-        apiRes.on('data', chunk => result += chunk);
-        apiRes.on('end', () => {
-          res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-          res.end(result);
+      try {
+        const { apiKey, payload } = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        const bodyBuf = Buffer.from(JSON.stringify(payload), 'utf8');
+        const options = {
+          hostname: 'api.anthropic.com',
+          path: '/v1/messages',
+          method: 'POST',
+          headers: {
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01',
+            'content-type': 'application/json',
+            'content-length': bodyBuf.length
+          }
+        };
+        const apiReq = https.request(options, apiRes => {
+          const resChunks = [];
+          apiRes.on('data', chunk => resChunks.push(chunk));
+          apiRes.on('end', () => {
+            res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+            res.end(Buffer.concat(resChunks));
+          });
         });
-      });
-      apiReq.on('error', e => { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); });
-      apiReq.write(data);
-      apiReq.end();
+        apiReq.on('error', e => {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: e.message }));
+        });
+        apiReq.write(bodyBuf);
+        apiReq.end();
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message }));
+      }
     });
   } else if (req.method === 'OPTIONS') {
     res.writeHead(200, { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': 'POST' });
